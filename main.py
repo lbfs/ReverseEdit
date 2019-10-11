@@ -4,7 +4,6 @@ from PySide2.QtUiTools import QUiLoader
 from PySide2.QtWidgets import QApplication, QWidget, QPushButton, QFileDialog, QLabel, QTableWidget, QHeaderView
 from PySide2.QtCore import QFile, QObject, QDir
 
-
 class ReverseEditWindow(QWidget):
     def __init__(self, parent=None):
         super(ReverseEditWindow, self).__init__(parent)
@@ -15,9 +14,9 @@ class ReverseEditWindow(QWidget):
         self.window = loader.load(ui_file)
 
         # SourceVideoList
-        headers = ["Source Filename", "Frame Count", "Frames Per Second"]
+        headers = ["Source Filename"]
         self.source_video_list = self.window.findChild(QTableWidget, "SourceVideoList")
-        self.source_video_list.setColumnCount(3)
+        self.source_video_list.setColumnCount(1)
         self.source_video_list.setHorizontalHeaderLabels(headers)
         self.source_video_list.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
 

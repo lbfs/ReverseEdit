@@ -11,14 +11,14 @@ class ClipReader:
         self.pos = 0
         self.capture = cv2.VideoCapture(filename)
         self.fps = self.capture.get(cv2.CAP_PROP_FPS)
-        self._count_frames()
+        #self._count_frames() #This kills the performance.
 
     def _count_frames(self):
         """ 
         Count the amount of frames in the VideoCapture. 
         Accessing cv2.CAP_PROP_FRAME_COUNT is unreliable.
         Should not be called as this result will be computed into the self.count variable on initalization.
-        A small run-time cost is incured as the entire video needs to be seeked through. 
+        A run-time cost is incured as the entire video needs to be seeked through. 
         """
         count = 0
         for element in iter(self):
@@ -54,8 +54,8 @@ class ClipReader:
         if not isinstance(key, int):
             raise IndexError(f"ClipReader requires an integer index not {type(key)}")
 
-        if key < 0 or key >= len(self):
-            raise IndexError(f"ClipReader index is out of range.")
+        #if key < 0 or key >= len(self):
+        #    raise IndexError(f"ClipReader index is out of range.")
 
         if key == self.pos + 1:
             _, frame = self.capture.read()
