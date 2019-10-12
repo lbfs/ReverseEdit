@@ -23,12 +23,15 @@ class ProcessedFrameInfo:
     def __eq__(self, other):
         return self.position == other.position and self.filename == other.filename
 
+def hamming_distance_processed(u, v):
+    return hamming_distance(u.hash, v.hash)
+
 # Crop and hash frames
 def process_frames_init():
     global mp_data
     hash_size = 8
-    dct_size = 8 * 4
-    window_size = dct_size * dct_size + 1
+    dct_size = hash_size * 4
+    window_size = dct_size * dct_size
     mp_data = (hash_size, dct_size, window_size)
 
 def process_frames_actor(data):
@@ -74,62 +77,63 @@ def find_nearest_matches_actor(processed):
 def find_nearest_matches(processed_source_frames, processed_edit_frames, depth=10):
     processed_edit_frames_new = []
     with multiprocessing.Pool(processes=15, initializer=find_nearest_matches_init, initargs=(processed_source_frames, depth)) as pool:
-        for processed in tqdm(pool.imap(find_nearest_matches_actor, processed_edit_frames)):
+        for processed in tqdm(pool.imap(find_nearest_matches_actor, processed_edit_frames), total=len(processed_edit_frames)):
             processed_edit_frames_new.append(processed)
     return processed_edit_frames_new
 
 # Find closest near match
+def find_better_nearest_matches_init(frames_to_scan):
+    global mp_data
+    tree = VPTree(frames_to_scan, hamming_distance_processed) # HACK: tree might be too large to pickle
+    mp_data = tree
+
+def find_better_nearest_matches_actor(processed):
+    processed.best_neighbor = mp_data.get_nearest_neighbor(processed)[1]
+    return processed
+
 def find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames):
     frames_to_scan = []
     for processed in processed_edit_frames:
         frames_to_scan.extend(processed.nearest_neighbors)
     
     frames_to_scan = sorted(list(set(frames_to_scan)), key=lambda processed: processed.position)
+    dct_total_size = 64 * 64
     for processed in tqdm(frames_to_scan):
         frame = source_clips[processed.filename][processed.position]
         adjusted_frame = crop_image_only_outside(frame, tol=40) # TODO: adjust?
-        if adjusted_frame.size < 64 * 64 + 1:
+        if adjusted_frame.size < dct_total_size:
             adjusted_frame = frame
         processed.hash = perceptual_hash(frame, hash_size=16, dct_size=64)
 
     for processed in tqdm(processed_edit_frames):
         frame = edit_clip[processed.position]
         adjusted_frame = crop_image_only_outside(frame, tol=40) # TODO: adjust?
-        if adjusted_frame.size < 64 * 64 + 1:
+        if adjusted_frame.size < dct_total_size:
             adjusted_frame = frame
         processed.hash = perceptual_hash(frame, hash_size=16, dct_size=64)
 
-    tree = VPTree(frames_to_scan, hamming_distance_processed)
-    for processed in tqdm(processed_edit_frames):
-        processed.best_neighbor = tree.get_nearest_neighbor(processed)[1]
+    with multiprocessing.Pool(processes=15, initializer=find_better_nearest_matches_init, initargs=frames_to_scan) as pool:
+        for index, processed in tqdm(enumerate(pool.imap(find_better_nearest_matches_actor, processed_edit_frames), total=len(processed_edit_frames))):
+            processed_edit_frames[index] = processed
 
-# Find closest matches
-def find_closest_ssims_in_nearest_neighbors(edit_clip, source_clips, processed_edit_frames):
-    for position, processed in enumerate(tqdm(processed_edit_frames)):
-        if len(processed.nearest_neighbors) == 1:
-            processed.best_neighbor = processed.nearest_neighbors[0]
-            continue
-        
-        edit_frame = edit_clip[position]
-        shape = edit_frame.shape
-        new_shape = (shape[0] // 2, shape[1] // 2) #Constant TODO: Look at SSIM Spec for best thing to do here
-        edit_frame = cv2.resize(edit_frame, new_shape)
+def build(edit_filename, source_filenames):
+    start_time = time.time()
 
-        best_neighbor, best_result = None, 0
-        for neighbor in processed.nearest_neighbors:
-            source_clip = source_clips[neighbor.filename]
-            resized_neighbor_frame = cv2.resize(source_clip[neighbor.position], new_shape)
-            res = compare_ssim(edit_frame, resized_neighbor_frame, multichannel=True)
-            if res > best_result:
-                best_neighbor = neighbor
-                best_result = res
-        processed.best_neighbor = best_neighbor
+    edit_clip = ClipReader(edit_filename)
+    processed_edit_frames = process_frames(edit_clip)
 
-def hamming_distance_processed(u, v):
-    return hamming_distance(u.hash, v.hash)
+    source_clips = {}
+    processed_source_frames = []
+    for filename in source_filenames:
+        source_clips[filename] = ClipReader(filename)
+        processed_source_frames.extend(process_frames(source_clips[filename]))
 
-def debug_export(clips, processed_frames):
-    pass
+    processed_edit_frames = find_nearest_matches(processed_source_frames, processed_edit_frames)
+    find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames)
+
+    end_time = time.time()
+    print("Recreation attempt took", end_time - start_time, "seconds.")
+    return processed_edit_frames
 
 if __name__ == "__main__":
     edit_filename = "../time.mkv"
@@ -138,26 +142,7 @@ if __name__ == "__main__":
     #edit_filename = "../born.mp4"
     #source_filenames = ["../Halo1.mkv", "../Halo2.mkv"]
 
-    start_time = time.time()
-    print("Started the process at", start_time)
-
-    edit_clip = ClipReader(edit_filename)
-    source_clips = {}
-    for filename in source_filenames:
-        source_clips[filename] = ClipReader(filename)
-
-    print("Processing edit clip.")
-    processed_edit_frames = process_frames(edit_clip)
-
-    print("Processing source clips.")
-    processed_source_frames = []
-    for filename in source_clips:
-        processed_source_frames.extend(process_frames(source_clips[filename]))
-
-    print("Build Tree")
-    processed_edit_frames = find_nearest_matches(processed_source_frames, processed_edit_frames)
-
-    find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames)
+    processed_edit_frames = build(edit_filename, source_filenames)
 
     with open("export4.pickle", "wb") as f:
         pickle.dump(processed_edit_frames, f)
@@ -174,8 +159,7 @@ if __name__ == "__main__":
             first = False
         cv2.waitKey(1)
 
-    end_time = time.time()
-    print("Ended the process at", end_time, "and it took", end_time - start_time)
+
 
     cv2.destroyAllWindows()
 
