@@ -2,8 +2,8 @@
 This module contains an implementation of a Vantage Point-tree (VP-tree). 
 Original implementation from https://github.com/RickardSjogren/vptree/blob/master/vptree.py
 """
-import numpy as np
-
+import math
+import statistics as stats
 
 class VPTree:
 
@@ -28,9 +28,9 @@ class VPTree:
     def __init__(self, points, dist_fn, root=None):
         self.left = None
         self.right = None
-        self.left_min = np.inf
+        self.left_min = math.inf
         self.left_max = 0
-        self.right_min = np.inf
+        self.right_min = math.inf
         self.right_max = 0
         self.dist_fn = dist_fn
 
@@ -39,15 +39,15 @@ class VPTree:
 
         # Vantage point is point furthest from parent vp.
         vp_i = 0
-        self.vp = points[vp_i]
-        points = np.delete(points, vp_i, axis=0)
+        self.vp = points[0]
+        points = points[1:]
 
         if len(points) == 0:
             return
 
         # Choose division boundary at median of distances.
         distances = [self.dist_fn(self.vp, p) for p in points]
-        median = np.median(distances)
+        median = stats.median(distances)
 
         left_points = []
         right_points = []
@@ -131,7 +131,7 @@ class VPTree:
         neighbors = _AutoSortingList(max_size=n_neighbors)
         nodes_to_visit = [(self, 0)]
 
-        furthest_d = np.inf
+        furthest_d = math.inf
 
         while len(nodes_to_visit) > 0:
             node, d0 = nodes_to_visit.pop(0)
@@ -239,7 +239,7 @@ class _AutoSortingList(list):
             Input item.
         """
         super(_AutoSortingList, self).append(item)
-        self.sort()
+        #self.sort()
         if self.max_size is not None and len(self) > self.max_size:
             self.pop()
 
