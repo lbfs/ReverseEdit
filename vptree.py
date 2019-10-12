@@ -21,8 +21,8 @@ class VPTree:
     dist_fn : Callable
         Function taking to point instances as arguments and returning
         the distance between them.
-    leaf_size : int
-        Minimum number of points in leaves (IGNORED).
+    root: None
+        Do not use. Internal to node creation.
     """
 
     def __init__(self, points, dist_fn, root=None):
@@ -176,10 +176,6 @@ class VPTree:
         -------
         neighbors : list
             List of points within `max_distance`.
-
-        Notes
-        -----
-        Returned neighbors are not sorted according to distance.
         """
         neighbors = list()
         nodes_to_visit = [(self, 0)]
@@ -239,7 +235,7 @@ class _AutoSortingList(list):
             Input item.
         """
         super(_AutoSortingList, self).append(item)
-        #self.sort()
+        self.sort(key=lambda item: item[0]) #Modified from original implementation
         if self.max_size is not None and len(self) > self.max_size:
             self.pop()
 

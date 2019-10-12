@@ -3,7 +3,7 @@ import scipy.spatial
 import numpy as np
 import cv2
 
-from skimage.measure import compare_ssim
+from skimage.measure import compare_ssim as compare_ssim_library
 
 # Image hashing
 def perceptual_hash(frame, hash_size=8, dct_size=32):
@@ -11,8 +11,7 @@ def perceptual_hash(frame, hash_size=8, dct_size=32):
     Perceptual algorithm implemented based on the following article
     http://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
     """
-    dct_frame = cv2.cvtColor(cv2.resize(
-        frame, (dct_size, dct_size)), cv2.COLOR_RGB2GRAY)
+    dct_frame = cv2.resize(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), (dct_size, dct_size))
     dct = scipy.fftpack.dct(scipy.fftpack.dct(dct_frame, axis=0), axis=1)
     low = dct[:hash_size, :hash_size]
     med = np.median(low)
@@ -23,8 +22,7 @@ def average_hash(frame, hash_size=8):
     Average hash algorithm implemented based on the following article
     http://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
     """
-    frame = cv2.cvtColor(cv2.resize(
-        frame, (hash_size, hash_size)), cv2.COLOR_RGB2GRAY)
+    dct_frame = cv2.resize(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), (hash_size, hash_size))
     return frame > np.mean(frame)
 
 def crop_image_only_outside(img,tol=0):
@@ -47,4 +45,4 @@ def hamming_distance(u, v):
 
 # Structural similiarity index between two frames
 def compare_ssim(u, v, multichannel=True):
-    return compare_ssim(u, v, multichannel=multichannel)
+    return compare_ssim_library(u, v, multichannel=multichannel)
