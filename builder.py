@@ -52,7 +52,7 @@ def process_frames_actor(data):
 
 def process_frames(clip):
     processed_frames = []
-    with multiprocessing.Pool(processes=15, initializer=process_frames_init) as pool:
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=process_frames_init) as pool:
         for processed in tqdm(pool.imap(process_frames_actor, enumerate(clip)), total=len(clip)):
             processed_frames.append(processed)
     
@@ -76,7 +76,7 @@ def find_nearest_matches_actor(processed):
 
 def find_nearest_matches(processed_source_frames, processed_edit_frames, depth=10):
     processed_edit_frames_new = []
-    with multiprocessing.Pool(processes=15, initializer=find_nearest_matches_init, initargs=(processed_source_frames, depth)) as pool:
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=find_nearest_matches_init, initargs=(processed_source_frames, depth)) as pool:
         for processed in tqdm(pool.imap(find_nearest_matches_actor, processed_edit_frames), total=len(processed_edit_frames)):
             processed_edit_frames_new.append(processed)
     return processed_edit_frames_new
@@ -112,7 +112,7 @@ def find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames):
             adjusted_frame = frame
         processed.hash = perceptual_hash(frame, hash_size=16, dct_size=64)
 
-    with multiprocessing.Pool(processes=15, initializer=find_better_nearest_matches_init, initargs=frames_to_scan) as pool:
+    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=find_better_nearest_matches_init, initargs=(frames_to_scan,)) as pool:
         for index, processed in tqdm(enumerate(pool.imap(find_better_nearest_matches_actor, processed_edit_frames), total=len(processed_edit_frames))):
             processed_edit_frames[index] = processed
 
@@ -136,11 +136,10 @@ def build(edit_filename, source_filenames):
     return processed_edit_frames
 
 if __name__ == "__main__":
-    edit_filename = "../time.mkv"
-    source_filenames = ["../halo720.mp4"]
-
-    #edit_filename = "../born.mp4"
-    #source_filenames = ["../Halo1.mkv", "../Halo2.mkv"]
+    edit_filename = "../Forever.mkv"
+    source_filenames = ["../Halo3.mkv", "Wars.mkv"]
+    #edit_filename = "../hawkling.mkv"
+    #source_filenames = ["../ark.mkv"]
 
     processed_edit_frames = build(edit_filename, source_filenames)
 
@@ -159,9 +158,5 @@ if __name__ == "__main__":
             first = False
         cv2.waitKey(1)
 
-
-
     cv2.destroyAllWindows()
-
     print("Exporting data")
-
