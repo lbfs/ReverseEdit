@@ -2,6 +2,7 @@ import time
 import pickle
 import multiprocessing
 import cv2
+import numpy as np
 from tqdm import tqdm
 from vptree import VPTree
 from clip import ClipReader
@@ -97,6 +98,7 @@ def find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames):
         frames_to_scan.extend(processed.nearest_neighbors)
     
     frames_to_scan = sorted(list(set(frames_to_scan)), key=lambda processed: processed.position)
+
     dct_total_size = 64 * 64
     for processed in tqdm(frames_to_scan):
         frame = source_clips[processed.filename][processed.position]
@@ -113,50 +115,68 @@ def find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames):
         processed.hash = perceptual_hash(frame, hash_size=16, dct_size=64)
 
     with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=find_better_nearest_matches_init, initargs=(frames_to_scan,)) as pool:
-        for index, processed in tqdm(enumerate(pool.imap(find_better_nearest_matches_actor, processed_edit_frames), total=len(processed_edit_frames))):
+        for index, processed in tqdm(enumerate(pool.imap(find_better_nearest_matches_actor, processed_edit_frames)), total=len(processed_edit_frames)):
             processed_edit_frames[index] = processed
 
 def build(edit_filename, source_filenames):
     start_time = time.time()
 
+    print("Starting Phase 1")
+    print("Processing", edit_filename)
     edit_clip = ClipReader(edit_filename)
     processed_edit_frames = process_frames(edit_clip)
 
     source_clips = {}
     processed_source_frames = []
     for filename in source_filenames:
+        print("Processing", filename)
         source_clips[filename] = ClipReader(filename)
         processed_source_frames.extend(process_frames(source_clips[filename]))
 
+    print("Calculating nearest matches")
     processed_edit_frames = find_nearest_matches(processed_source_frames, processed_edit_frames)
+
+    print("Starting Phase 2")
     find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames)
 
     end_time = time.time()
     print("Recreation attempt took", end_time - start_time, "seconds.")
+    
     return processed_edit_frames
 
-if __name__ == "__main__":
-    edit_filename = "../Forever.mkv"
-    source_filenames = ["../Halo3.mkv", "Wars.mkv"]
-    #edit_filename = "../hawkling.mkv"
-    #source_filenames = ["../ark.mkv"]
+def debug_export(edit_filename, source_filenames):
+    source_clips = {}
+    for filename in source_filenames:
+        source_clips[filename] = ClipReader(filename)
+    
+    edit_clip = ClipReader(edit_filename)
 
-    processed_edit_frames = build(edit_filename, source_filenames)
-
-    with open("export4.pickle", "wb") as f:
-        pickle.dump(processed_edit_frames, f)
-
+    with open("export.pickle", "rb") as f:
+        processed_edit_frames = pickle.load(f)
+    
     print("Displaying preview!")
 
     first = True
-    for processed in processed_edit_frames:
+    for index, processed in enumerate(processed_edit_frames):
         neighbor = processed.best_neighbor
-        mat = source_clips[neighbor.filename][neighbor.position]
-        cv2.imshow("Just the hams", mat)
-        if first:
-            cv2.waitKey(0)
-            first = False
-        cv2.waitKey(1)
+        edit_frame = edit_clip[processed.position]
+
+        source_frame = source_clips[neighbor.filename][neighbor.position]
+        source_frame = cv2.resize(source_frame, (edit_clip.width, edit_clip.height))
+
+        cv2.imwrite(f"../debug_export/{index:05d}.png", np.concatenate((edit_frame, source_frame), axis=1))
+
+if __name__ == "__main__":
+    edit_filename = "../Forever.mkv"
+    source_filenames = ["../Halo3_720.mp4", "../Halo2.mkv", "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
+
+    debug = 1
+    if debug:
+        debug_export(edit_filename, source_filenames)
+    else:
+        processed_edit_frames = build(edit_filename, source_filenames)
+
+        with open("export.pickle", "wb") as f:
+            pickle.dump(processed_edit_frames, f)
 
     cv2.destroyAllWindows()
-    print("Exporting data")

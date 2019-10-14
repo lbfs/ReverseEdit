@@ -17,14 +17,6 @@ def perceptual_hash(frame, hash_size=8, dct_size=32):
     med = np.median(low)
     return low > med
 
-def average_hash(frame, hash_size=8):
-    """
-    Average hash algorithm implemented based on the following article
-    http://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
-    """
-    dct_frame = cv2.resize(cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY), (hash_size, hash_size))
-    return frame > np.mean(frame)
-
 def crop_image_only_outside(img,tol=0):
     """
 	Cropping algorithm from user Divakar
