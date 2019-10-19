@@ -1,199 +1,130 @@
-import time
-import pickle
+import multiprocessing
+from multiprocessing.dummy import Pool as ThreadPool
+
 import os
 import shutil
-import multiprocessing
-
 import cv2
+import pickle
 import numpy as np
 from tqdm import tqdm
+
 from vptree import VPTree
 from clip import ClipReader
-from image import perceptual_hash, hamming_distance, compare_ssim, crop_image_only_outside
+from image import ImageTool, HashedFrame
 
-mp_data = None #Used for values that will be reused.
-class ProcessedFrameInfo:
-    def __init__(self):
-        self.position = None
-        self.filename = None
-        self.hash = None
-        self.nearest_neighbors = None
-        self.best_neighbor = None
-    
-    def __hash__(self):
-        return hash(('filename', self.filename, 'position', self.position))
+mp_data = None
 
-    def __eq__(self, other):
-        return self.position == other.position and self.filename == other.filename
 
-    def __lt__(self, other):
-        return self.position < other.position
-
-def hamming_distance_processed(u, v):
-    return hamming_distance(u.hash, v.hash)
-
-# Phase 0: Crop and hash frames
-def process_frames_init():
+def apply_hash_initalizer(hash_function, hash_settings, hash_window_size, tolerance):
     global mp_data
-    hash_size = 8
-    dct_size = hash_size * 4
-    window_size = dct_size * dct_size
-    mp_data = (hash_size, dct_size, window_size)
+    mp_data = (hash_function, hash_settings,
+                      hash_window_size, tolerance)
 
-def process_frames_actor(data):
+
+def apply_hash_actor(data):
     global mp_data
+    hash_function, hash_settings, hash_window_size, tolerance = mp_data
+
     position, frame = data
-    processed = ProcessedFrameInfo()
+    frame = ImageTool.crop_image_only_outside(
+        frame, tolerance, hash_window_size, hash_window_size)
 
-    hash_size, dct_size, window_size = mp_data
-    adjusted_frame = crop_image_only_outside(frame, tol=30)
+    hashed_frame = HashedFrame()
+    hashed_frame.hash = hash_function(frame, *hash_settings)
+    hashed_frame.position = position
+    return hashed_frame
 
-    if adjusted_frame.size < window_size:
-        adjusted_frame = frame
 
-    processed.hash = perceptual_hash(adjusted_frame, hash_size=hash_size, dct_size=dct_size)
-    processed.position = position
-    return processed
+def apply_hash(clip):
+    hash_function = ImageTool.perceptual_hash
+    hash_settings = (16, 16 * 4)
+    hash_window_size = 16 * 4 * 16 * 4
+    tolerance = 40
 
-def process_frames(clip):
-    processed_frames = []
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=process_frames_init) as pool:
-        for processed in tqdm(pool.imap(process_frames_actor, enumerate(clip)), total=len(clip)):
-            processed_frames.append(processed)
-    
-    for processed in processed_frames:
-        processed.filename = clip.filename
-    return processed_frames
+    initargs = (hash_function, hash_settings, hash_window_size, tolerance,)
+    process_count = multiprocessing.cpu_count() - 1 or 1
+    with ThreadPool(processes=process_count, initializer=apply_hash_initalizer, initargs=initargs) as pool:
+        iterator = tqdm(pool.imap(apply_hash_actor,
+                                  enumerate(clip)), total=len(clip))
+        frames = [hashed_frame for hashed_frame in iterator]
 
-# Phase 1: Find Nearest Matches
-def find_nearest_matches_init(processed_source_frames, depth):
+    for hashed_frame in frames:
+        hashed_frame.filename = clip.filename
+
+    return frames
+
+
+def find_nearest_matches_initalizer(frames, depth):
     global mp_data
-    tree = VPTree(processed_source_frames, hamming_distance_processed) # HACK: tree might be too large to pickle
+    # HACK: We should only need to construct the tree on the main process and then send it
+    # However, some trees might be too large to recurse, which is a significant problem.
+    # Thankfully, we can easily just create the tree here and there are no issues,
+    # except higher than normal CPU usage.
+    tree = VPTree(frames, HashedFrame.compute_distance)
     mp_data = (tree, depth)
 
-def find_nearest_matches_actor(processed):
+
+def find_nearest_matches_actor(frame):
     tree, depth = mp_data
-    nearest_neighbors = tree.get_n_nearest_neighbors(processed, depth)
+    nearest_neighbors = tree.get_n_nearest_neighbors(frame, depth)
     nearest_neighbors = [element[1] for element in nearest_neighbors]
-    processed.nearest_neighbors = nearest_neighbors
-    processed.best_neighbor = nearest_neighbors[0]
-    return processed
+    frame.nearest_neighbors = nearest_neighbors
+    frame.best_neighbor = nearest_neighbors[0]
+    return frame
 
-def find_nearest_matches(processed_source_frames, processed_edit_frames, depth=10):
-    processed_edit_frames_new = []
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=find_nearest_matches_init, initargs=(processed_source_frames, depth)) as pool:
-        for processed in tqdm(pool.imap(find_nearest_matches_actor, processed_edit_frames), total=len(processed_edit_frames)):
-            processed_edit_frames_new.append(processed)
-    return processed_edit_frames_new
 
-# Phase 2: Find Better Nearest Matches
-def find_better_nearest_matches_init(frames_to_scan):
-    global mp_data
-    tree = VPTree(frames_to_scan, hamming_distance_processed) # HACK: tree might be too large to pickle
-    mp_data = tree
+def find_nearest_matches(source_frames, edit_frames, depth=10):
+    process_count = multiprocessing.cpu_count() - 1 or 1
+    with multiprocessing.Pool(processes=process_count, initializer=find_nearest_matches_initalizer, initargs=(source_frames, depth)) as pool:
+        iterator = tqdm(pool.imap(find_nearest_matches_actor,
+                                  edit_frames), total=len(edit_frames))
+        frames = [frame for frame in iterator]
+    return frames
 
-def find_better_nearest_matches_actor(processed):
-    processed.best_neighbor = mp_data.get_nearest_neighbor(processed)[1]
-    return processed
 
-def find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames):
-    hash_size = 16
-    dct_size = hash_size * 4
-    window_size = dct_size * dct_size
-    nearest_neighbors = []
-    # TODO: Parallelize
-    for processed in tqdm(processed_edit_frames):
-        frame = edit_clip[processed.position]
-        adjusted_frame = crop_image_only_outside(frame, tol=30) # TODO: adjust?
-        if adjusted_frame.size < window_size:
-            adjusted_frame = frame
-        processed.hash = perceptual_hash(frame, hash_size=hash_size, dct_size=dct_size)
-        nearest_neighbors.extend(processed.nearest_neighbors)
-
-    # We order and remove duplicates, also helps (does not prevent) with preventing seek errors by keeping everything linear.
-    nearest_neighbors = sorted(list(set(nearest_neighbors)))
-    # TODO: Parallelize
-    for neighbor in tqdm(nearest_neighbors):
-        frame = source_clips[neighbor.filename][neighbor.position]
-        adjusted_frame = crop_image_only_outside(frame, tol=30) # TODO: adjust?
-        if adjusted_frame.size < window_size:
-            adjusted_frame = frame
-        neighbor.hash = perceptual_hash(frame, hash_size=hash_size, dct_size=dct_size)
-
-    with multiprocessing.Pool(processes=multiprocessing.cpu_count() - 1 or 1, initializer=find_better_nearest_matches_init, initargs=(nearest_neighbors,)) as pool:
-        for index, processed in tqdm(enumerate(pool.imap(find_better_nearest_matches_actor, processed_edit_frames)), total=len(processed_edit_frames)):
-            processed_edit_frames[index] = processed
-
-def debug_export(edit_clip, source_clips, processed_edit_frames):
+def debug_export(edit_clip, source_clips, edit_frames):
     if os.path.exists("../debug_export"):
         shutil.rmtree("../debug_export")
 
-    os.mkdir("../debug_export")    
-    for index, processed in enumerate(processed_edit_frames):
-        neighbor = processed.best_neighbor
-        edit_frame = edit_clip[processed.position]
+    os.mkdir("../debug_export")
+    for index, frame in enumerate(edit_frames):
+        neighbor = frame.best_neighbor
+        edit_frame = edit_clip[frame.position]
         source_frame = source_clips[neighbor.filename][neighbor.position]
-        source_frame = cv2.resize(source_frame, (edit_clip.width, edit_clip.height))
-        cv2.imwrite(f"../debug_export/{index:05d}.png", np.concatenate((edit_frame, source_frame), axis=1))
+        source_frame = cv2.resize(
+            source_frame, (edit_clip.width, edit_clip.height))
+        cv2.imwrite(f"../debug_export/{index:05d}.png",
+                    np.concatenate((edit_frame, source_frame), axis=1))
 
-def skip_debug_export(edit_filename, source_filenames):
-    with open("export.pickle", "rb") as f:
-        processed_edit_frames = pickle.load(f)
-
-    source_clips = {}
-    for filename in source_filenames:
-        source_clips[filename] = ClipReader(filename)
-    
-    edit_clip = ClipReader(edit_filename)
-    debug_export(edit_clip, source_clips, processed_edit_frames)
 
 def build(edit_filename, source_filenames):
     print("Phase 0: Hashing and Cropping")
     print("Processing", edit_filename)
     edit_clip = ClipReader(edit_filename)
-    processed_edit_frames = process_frames(edit_clip)
+    edit_frames = apply_hash(edit_clip)
 
     source_clips = {}
-    processed_source_frames = []
+    source_frames = []
     for filename in source_filenames:
         print("Processing", filename)
         source_clips[filename] = ClipReader(filename)
-        processed_source_frames.extend(process_frames(source_clips[filename]))
+        source_frames.extend(apply_hash(source_clips[filename]))
 
     print("Phase 1: Finding Nearest Matches")
-    processed_edit_frames = find_nearest_matches(processed_source_frames, processed_edit_frames)
+    edit_frames = find_nearest_matches(source_frames, edit_frames)
 
-    print("Phase 2: Finding Best Matches")
-    find_better_nearest_matches(source_clips, edit_clip, processed_edit_frames)
-
-    print("Phase 3: Drop Mostly Solid Color Frames")
-    
-    print("Phase 4: Drop Frames Below Comparison Threshold")
-    
-    print("Phase 5: Sort Frames By Chunked Segment (Maybe?)")
-
-    print("Phase 6: Export Debug Data")
+    print("Phase 2: Export Debug Data")
     with open("export.pickle", "wb") as f:
-        pickle.dump(processed_edit_frames, f)
+        pickle.dump(edit_frames, f)
 
-    print("Phase 6: Export Frames")
-    debug_export(edit_clip, source_clips, processed_edit_frames)
+    print("Phase 3: Export Frames")
+    debug_export(edit_clip, source_clips, edit_frames)
+    return frames
 
-    return processed_edit_frames
 
 if __name__ == "__main__":
     edit_filename = "../hawkling.mkv"
     source_filenames = ["../ark.mkv"]
-    #edit_filename = "../Forever.mkv"
-    #source_filenames = ["../Halo3_720.mp4", "../Halo2.mkv", "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
 
-    debug = 0
-    if debug:
-        debug_export(edit_filename, source_filenames)
-    else:
-        processed_edit_frames = build(edit_filename, source_filenames)
-
-        with open("export.pickle", "wb") as f:
-            pickle.dump(processed_edit_frames, f)
-
+    edit_frames = build(edit_filename, source_filenames)
     cv2.destroyAllWindows()

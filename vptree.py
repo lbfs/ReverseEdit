@@ -1,5 +1,5 @@
-""" 
-This module contains an implementation of a Vantage Point-tree (VP-tree). 
+"""
+This module contains an implementation of a Vantage Point-tree (VP-tree).
 Original implementation from https://github.com/RickardSjogren/vptree/blob/master/vptree.py
 """
 import math
@@ -24,7 +24,7 @@ class VPTree:
     root: None
         Do not use. Internal to node creation.
     """
-
+    __slots__ = ["left", "right", "left_min", "left_max", "right_min", "right_max", "dist_fn", "vp"]
     def __init__(self, points, dist_fn, root=None):
         self.left = None
         self.right = None
@@ -67,11 +67,11 @@ class VPTree:
                 else:
                     left_points.append(point)
 
-        # Modified from the original implementation, removing recursive node creation as large trees cannot be constructed otherwise. 
+        # Modified from the original implementation, removing recursive node creation as large trees cannot be constructed otherwise.
         if root is not None:
             if len(left_points) > 0:
                 root.append((self, 0, left_points))
-            
+
             if len(right_points) > 0:
                 root.append((self, 1, right_points))
         elif root is None:
@@ -98,7 +98,7 @@ class VPTree:
 
     def get_nearest_neighbor(self, query):
         """ Get single nearest neighbor.
-        
+
         Parameters
         ----------
         query : Any
@@ -113,7 +113,7 @@ class VPTree:
 
     def get_n_nearest_neighbors(self, query, n_neighbors):
         """ Get `n_neighbors` nearest neigbors to `query`
-        
+
         Parameters
         ----------
         query : Any
@@ -222,6 +222,7 @@ class _AutoSortingList(list):
         Max queue size.
     """
 
+    __slots__ = ["max_size"]
     def __init__(self, max_size=None, *args):
         super(_AutoSortingList, self).__init__(*args)
         self.max_size = max_size

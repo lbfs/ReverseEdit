@@ -14,23 +14,10 @@ class ClipReader:
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        #self._count_frames() #This kills the performance.
-
-    def _count_frames(self):
-        """ 
-        Count the amount of frames in the VideoCapture. 
-        Accessing cv2.CAP_PROP_FRAME_COUNT is unreliable.
-        Should not be called as this result will be computed into the self.count variable on initalization.
-        A run-time cost is incured as the entire video needs to be seeked through. 
-        """
-        count = 0
-        for element in iter(self):
-            count += 1
-        self.count = count
 
     def __iter__(self):
         """
-        Iterate through all of the frames from starting position of a video to the end of the video. 
+        Iterate through all of the frames from starting position of a video to the end of the video.
         """
         pos = 0
         while True:
@@ -51,7 +38,7 @@ class ClipReader:
 
     def __getitem__(self, key):
         """
-        Requests the desired frame at the specified index. 
+        Requests the desired frame at the specified index.
         Accessing sequential frames does not require additional seeks.
         """
         if not isinstance(key, int):
@@ -71,6 +58,6 @@ class ClipReader:
 
     def __len__(self):
         """
-        Returns the number of frames present in the Clip
+        Returns the estimated number of frames present in the Clip
         """
         return self.count
