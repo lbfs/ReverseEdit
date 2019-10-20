@@ -28,8 +28,8 @@ class HashedFrame:
 
     @staticmethod
     def compute_distance(u, v):
-        return scipy.spatial.distance.hamming(u.hash.flatten(), v.hash.flatten())
-
+        """ Compute the hamming distance between hashes, requires hash to be flattened before storing """
+        return np.count_nonzero(u.hash != v.hash)
 
 class ImageTool:
     @staticmethod
