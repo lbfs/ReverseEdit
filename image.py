@@ -35,7 +35,7 @@ class ImageTool:
     @staticmethod
     def perceptual_hash(frame, hash_size=8, dct_size=32):
         """
-        Perceptual algorithm implemented based on the following article
+        Perceptual algorithm partially implemented based on the following article
         http://www.hackerfactor.com/blog/index.php?/archives/432-Looks-Like-It.html
         """
         dct_frame = cv2.resize(cv2.cvtColor(
@@ -63,7 +63,6 @@ class ImageTool:
         img_cropped = img[row_start:row_end, col_start:col_end]
         if minimum_width is not None and minimum_height is not None:
             if row_end - row_start < minimum_height or col_end - col_start < minimum_width:
-                # TODO: DEBUG
                 return img
 
         return img_cropped

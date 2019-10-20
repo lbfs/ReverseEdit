@@ -18,38 +18,30 @@ mp_data = None
 def apply_hash_initalizer(hash_function, hash_settings, hash_window_size, tolerance):
     global mp_data
     mp_data = (hash_function, hash_settings,
-                      hash_window_size, tolerance)
+               hash_window_size, tolerance)
 
 
-def apply_hash_actor(data):
+def apply_hash_actor(frame):
     global mp_data
     hash_function, hash_settings, hash_window_size, tolerance = mp_data
 
-    position, frame = data
-    frame = ImageTool.crop_image_only_outside(
-        frame, tolerance, hash_window_size, hash_window_size)
+    data = ImageTool.crop_image_only_outside(
+        frame.frame, tolerance, hash_window_size, hash_window_size)
 
     hashed_frame = HashedFrame()
-    hashed_frame.hash = hash_function(frame, *hash_settings)
-    hashed_frame.position = position
+    hashed_frame.hash = hash_function(data, *hash_settings)
+    hashed_frame.position = frame.position
+    hashed_frame.filename = frame.filename
     return hashed_frame
 
 
-def apply_hash(clip):
-    hash_function = ImageTool.perceptual_hash
-    hash_settings = (16, 16 * 4)
-    hash_window_size = 16 * 4 * 16 * 4
-    tolerance = 40
-
-    initargs = (hash_function, hash_settings, hash_window_size, tolerance,)
+def apply_hash(iterator, hash_function, hash_args, hash_window_size, tolerance=40, iterator_length=None):
+    initargs = (hash_function, hash_args, hash_window_size, tolerance,)
     process_count = multiprocessing.cpu_count() - 1 or 1
     with ThreadPool(processes=process_count, initializer=apply_hash_initalizer, initargs=initargs) as pool:
         iterator = tqdm(pool.imap(apply_hash_actor,
-                                  enumerate(clip)), total=len(clip))
+                                  iterator), total=iterator_length)
         frames = [hashed_frame for hashed_frame in iterator]
-
-    for hashed_frame in frames:
-        hashed_frame.filename = clip.filename
 
     return frames
 
@@ -73,7 +65,7 @@ def find_nearest_matches_actor(frame):
     return frame
 
 
-def find_nearest_matches(source_frames, edit_frames, depth=10):
+def find_nearest_matches(source_frames, edit_frames, depth=1):
     process_count = multiprocessing.cpu_count() - 1 or 1
     with multiprocessing.Pool(processes=process_count, initializer=find_nearest_matches_initalizer, initargs=(source_frames, depth)) as pool:
         iterator = tqdm(pool.imap(find_nearest_matches_actor,
@@ -87,28 +79,54 @@ def debug_export(edit_clip, source_clips, edit_frames):
         shutil.rmtree("../debug_export")
 
     os.mkdir("../debug_export")
-    for index, frame in enumerate(edit_frames):
+    for index, frame in tqdm(enumerate(edit_frames), total=len(edit_frames)):
         neighbor = frame.best_neighbor
-        edit_frame = edit_clip[frame.position]
-        source_frame = source_clips[neighbor.filename][neighbor.position]
+        edit_frame = edit_clip[frame.position].frame
+        source_frame = source_clips[neighbor.filename][neighbor.position].frame
         source_frame = cv2.resize(
             source_frame, (edit_clip.width, edit_clip.height))
-        cv2.imwrite(f"../debug_export/{index:05d}.png",
-                    np.concatenate((edit_frame, source_frame), axis=1))
+
+        distance = HashedFrame.compute_distance(frame, neighbor)
+        frame_to_write = np.concatenate((edit_frame, source_frame), axis=1)
+
+        cv2.putText(frame_to_write, f"{distance:0.2f}", (
+            10, frame_to_write.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
+        cv2.imwrite(f"../debug_export/{index:05d}.png", frame_to_write)
+
+
+def debug_build(edit_filename, source_filenames):
+    with open("export.pickle", "rb") as f:
+        edit_frames = pickle.load(f)
+
+    source_clips = {}
+    for filename in source_filenames:
+        source_clips[filename] = ClipReader(filename)
+
+    edit_clip = ClipReader(edit_filename)
+    debug_export(edit_clip, source_clips, edit_frames)
+    return edit_frames
 
 
 def build(edit_filename, source_filenames):
     print("Phase 0: Hashing and Cropping")
+
+    hash_function = ImageTool.perceptual_hash
+    hash_size = 32
+    hash_args = (hash_size, hash_size * 4)
+    hash_window_size = hash_size * 4 * hash_size * 4
+
     print("Processing", edit_filename)
     edit_clip = ClipReader(edit_filename)
-    edit_frames = apply_hash(edit_clip)
+    edit_frames = apply_hash(edit_clip, hash_function=hash_function, hash_args=hash_args,
+                             hash_window_size=hash_window_size, iterator_length=len(edit_clip))
 
     source_clips = {}
     source_frames = []
     for filename in source_filenames:
         print("Processing", filename)
         source_clips[filename] = ClipReader(filename)
-        source_frames.extend(apply_hash(source_clips[filename]))
+        source_frames.extend(apply_hash(source_clips[filename], hash_function=hash_function,
+                                        hash_args=hash_args, hash_window_size=hash_window_size, iterator_length=len(source_clips[filename])))
 
     print("Phase 1: Finding Nearest Matches")
     edit_frames = find_nearest_matches(source_frames, edit_frames)
@@ -119,12 +137,22 @@ def build(edit_filename, source_filenames):
 
     print("Phase 3: Export Frames")
     debug_export(edit_clip, source_clips, edit_frames)
-    return frames
+    return edit_frames
 
 
 if __name__ == "__main__":
     edit_filename = "../hawkling.mkv"
     source_filenames = ["../ark.mkv"]
+    #edit_filename = "../time.mkv"
+    #source_filenames = ["../Halo3.mkv"]
+    #edit_filename = "../Forever.mkv"
+    #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
+    #                    "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
 
-    edit_frames = build(edit_filename, source_filenames)
+    debug = False
+    if debug:
+        edit_frames = debug_build(edit_filename, source_filenames)
+    else:
+        edit_frames = build(edit_filename, source_filenames)
+
     cv2.destroyAllWindows()

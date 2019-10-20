@@ -1,6 +1,12 @@
 import os
 import cv2
 
+class Frame:
+    def __init__(self, frame, filename, position):
+        self.frame = frame
+        self.filename = filename
+        self.position = position
+
 class ClipReader:
     """ A class to interact with a video object with easy seek and iteration functionality. """
     def __init__(self, filename):
@@ -28,7 +34,7 @@ class ClipReader:
             ret, frame = self.capture.read()
 
             if ret:
-                yield frame
+                yield Frame(frame, self.filename, self.pos)
                 pos += 1
                 self.pos = pos
             else:
@@ -48,13 +54,17 @@ class ClipReader:
         #    raise IndexError(f"ClipReader index is out of range.")
 
         if key == self.pos + 1:
-            _, frame = self.capture.read()
+            ret, frame = self.capture.read()
         else:
             self.capture.set(cv2.CAP_PROP_POS_FRAMES, key)
-            _, frame = self.capture.read()
+            ret, frame = self.capture.read()
 
-        self.pos = key
-        return frame
+        self.pos = key + 1
+
+        if not ret:
+            return None
+
+        return Frame(frame, self.filename, self.pos)
 
     def __len__(self):
         """
