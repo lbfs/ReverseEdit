@@ -64,7 +64,7 @@ class ClipReader:
         if not ret:
             return None
 
-        return Frame(frame, self.filename, self.pos)
+        return Frame(frame, self.filename, key)
 
     def __len__(self):
         """

@@ -236,8 +236,8 @@ class _AutoSortingList(list):
             Input item.
         """
         super(_AutoSortingList, self).append(item)
+        self.sort(key=lambda item: item[0])
         if self.max_size is not None and len(self) > self.max_size:
-            self.sort(key=lambda item: item[0])
             self.pop()
 
 """

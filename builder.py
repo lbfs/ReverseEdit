@@ -106,6 +106,11 @@ def debug_build(edit_filename, source_filenames):
     debug_export(edit_clip, source_clips, edit_frames)
     return edit_frames
 
+def frames_from_multiclip(frames, clips):
+    # Currently unused
+    frames = sorted(frames) #Sorting the frames in order helps with reducing seek errors.
+    for frame in frames:
+        yield clips[frame.filename][frame.position]
 
 def build(edit_filename, source_filenames):
     print("Phase 0: Hashing and Cropping")
@@ -115,11 +120,6 @@ def build(edit_filename, source_filenames):
     hash_args = (hash_size, hash_size * 4)
     hash_window_size = hash_size * 4 * hash_size * 4
 
-    print("Processing", edit_filename)
-    edit_clip = ClipReader(edit_filename)
-    edit_frames = apply_hash(edit_clip, hash_function=hash_function, hash_args=hash_args,
-                             hash_window_size=hash_window_size, iterator_length=len(edit_clip))
-
     source_clips = {}
     source_frames = []
     for filename in source_filenames:
@@ -128,31 +128,32 @@ def build(edit_filename, source_filenames):
         source_frames.extend(apply_hash(source_clips[filename], hash_function=hash_function,
                                         hash_args=hash_args, hash_window_size=hash_window_size, iterator_length=len(source_clips[filename])))
 
+    print("Processing", edit_filename)
+    edit_clip = ClipReader(edit_filename)
+    edit_frames = apply_hash(edit_clip, hash_function=hash_function, hash_args=hash_args,
+                             hash_window_size=hash_window_size, iterator_length=len(edit_clip))
+
     print("Phase 1: Finding Nearest Matches")
-    edit_frames = find_nearest_matches(source_frames, edit_frames)
+    matched_edit_frames = find_nearest_matches(source_frames, edit_frames, depth=1)
 
     print("Phase 2: Export Debug Data")
     with open("export.pickle", "wb") as f:
-        pickle.dump(edit_frames, f)
+        pickle.dump(matched_edit_frames, f)
 
     print("Phase 3: Export Frames")
-    debug_export(edit_clip, source_clips, edit_frames)
-    return edit_frames
+    debug_export(edit_clip, source_clips, matched_edit_frames)
+    return matched_edit_frames
 
 
 if __name__ == "__main__":
-    edit_filename = "../hawkling.mkv"
-    source_filenames = ["../ark.mkv"]
-    #edit_filename = "../time.mkv"
-    #source_filenames = ["../Halo3.mkv"]
-    #edit_filename = "../Forever.mkv"
-    #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
-    #                    "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
+    edit_filename = "../Forever.mkv"
+    source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
+                        "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
 
     debug = False
     if debug:
-        edit_frames = debug_build(edit_filename, source_filenames)
+        matched_edit_frames = debug_build(edit_filename, source_filenames)
     else:
-        edit_frames = build(edit_filename, source_filenames)
+        matched_edit_frames = build(edit_filename, source_filenames)
 
     cv2.destroyAllWindows()

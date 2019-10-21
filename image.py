@@ -1,5 +1,4 @@
 import scipy.fftpack
-import scipy.spatial
 import numpy as np
 import cv2
 
@@ -28,8 +27,9 @@ class HashedFrame:
 
     @staticmethod
     def compute_distance(u, v):
-        """ Compute the hamming distance between hashes, requires hash to be flattened before storing """
+        """ Compute the hamming distance between hashes. """
         return np.count_nonzero(u.hash != v.hash)
+
 
 class ImageTool:
     @staticmethod
