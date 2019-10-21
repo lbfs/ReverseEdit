@@ -2,6 +2,7 @@ import os
 import cv2
 
 class Frame:
+    __slots__ = ["frame", "filename", "position"]
     def __init__(self, frame, filename, position):
         self.frame = frame
         self.filename = filename
@@ -9,6 +10,7 @@ class Frame:
 
 class ClipReader:
     """ A class to interact with a video object with easy seek and iteration functionality. """
+    __slots__ = ["filename", "pos", "capture", "fps", "height", "width", "count"]
     def __init__(self, filename):
         if not os.path.exists(filename):
             raise FileNotFoundError(f"File {filename} does not exist.")

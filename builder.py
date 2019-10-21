@@ -11,6 +11,7 @@ from tqdm import tqdm
 from vptree import VPTree
 from clip import ClipReader
 from image import ImageTool, HashedFrame
+from gmpy2 import mpz, hamdist, pack
 
 mp_data = None
 
@@ -29,7 +30,7 @@ def apply_hash_actor(frame):
         frame.frame, tolerance, hash_window_size, hash_window_size)
 
     hashed_frame = HashedFrame()
-    hashed_frame.hash = hash_function(data, *hash_settings)
+    hashed_frame.hash = pack(list(map(int, hash_function(data, *hash_settings).flatten())),1)
     hashed_frame.position = frame.position
     hashed_frame.filename = frame.filename
     return hashed_frame
@@ -146,6 +147,8 @@ def build(edit_filename, source_filenames):
 
 
 if __name__ == "__main__":
+    #edit_filename = "../hawkling.mkv"
+    #source_filenames = ["../ark.mkv"]
     edit_filename = "../Forever.mkv"
     source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
                         "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]

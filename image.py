@@ -3,6 +3,7 @@ import numpy as np
 import cv2
 
 from skimage.measure import compare_ssim as compare_ssim_library
+from gmpy2 import mpz, hamdist, pack
 
 
 class HashedFrame:
@@ -28,7 +29,8 @@ class HashedFrame:
     @staticmethod
     def compute_distance(u, v):
         """ Compute the hamming distance between hashes. """
-        return np.count_nonzero(u.hash != v.hash)
+        return hamdist(u.hash, v.hash)
+        #return np.count_nonzero(u.hash != v.hash)
 
 
 class ImageTool:
