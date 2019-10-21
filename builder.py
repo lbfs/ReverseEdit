@@ -24,17 +24,17 @@ def apply_hash_initalizer(hash_function, hash_settings, hash_window_size, tolera
 
 def apply_hash_actor(frame):
     global mp_data
-    hash_function, hash_settings, hash_window_size, tolerance = mp_data
+    hash_function, hash_args, hash_window_size, tolerance = mp_data
 
     data = ImageTool.crop_image_only_outside(
         frame.frame, tolerance, hash_window_size, hash_window_size)
 
     hashed_frame = HashedFrame()
-    hashed_frame.hash = pack(list(map(int, hash_function(data, *hash_settings).flatten())),1)
+    hashed_frame.hash = hash_function(data, *hash_args)
+    hashed_frame.hash = pack(hashed_frame.hash.astype(int).flatten().tolist(), 1)
     hashed_frame.position = frame.position
     hashed_frame.filename = frame.filename
     return hashed_frame
-
 
 def apply_hash(iterator, hash_function, hash_args, hash_window_size, tolerance=40, iterator_length=None):
     initargs = (hash_function, hash_args, hash_window_size, tolerance,)
@@ -147,11 +147,11 @@ def build(edit_filename, source_filenames):
 
 
 if __name__ == "__main__":
-    #edit_filename = "../hawkling.mkv"
-    #source_filenames = ["../ark.mkv"]
-    edit_filename = "../Forever.mkv"
-    source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
-                        "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
+    edit_filename = "../hawkling.mkv"
+    source_filenames = ["../ark.mkv"]
+    #edit_filename = "../Forever.mkv"
+    #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
+    #                    "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
 
     debug = False
     if debug:
