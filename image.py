@@ -30,7 +30,6 @@ class HashedFrame:
     def compute_distance(u, v):
         """ Compute the hamming distance between hashes. """
         return hamdist(u.hash, v.hash)
-        #return np.count_nonzero(u.hash != v.hash)
 
 
 class ImageTool:

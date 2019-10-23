@@ -16,9 +16,9 @@ from gmpy2 import mpz, hamdist, pack
 mp_data = None
 
 
-def apply_hash_initalizer(hash_function, hash_settings, hash_window_size, tolerance):
+def apply_hash_initalizer(hash_function, hash_args, hash_window_size, tolerance):
     global mp_data
-    mp_data = (hash_function, hash_settings,
+    mp_data = (hash_function, hash_args,
                hash_window_size, tolerance)
 
 
@@ -80,7 +80,10 @@ def debug_export(edit_clip, source_clips, edit_frames):
         shutil.rmtree("../debug_export")
 
     os.mkdir("../debug_export")
-    for index, frame in tqdm(enumerate(edit_frames), total=len(edit_frames)):
+
+    edit_frames = sorted(edit_frames, key=lambda frame: frame.best_neighbor.position)
+
+    for frame in tqdm(edit_frames):
         neighbor = frame.best_neighbor
         edit_frame = edit_clip[frame.position].frame
         source_frame = source_clips[neighbor.filename][neighbor.position].frame
@@ -92,7 +95,7 @@ def debug_export(edit_clip, source_clips, edit_frames):
 
         cv2.putText(frame_to_write, f"{distance:0.2f}", (
             10, frame_to_write.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
-        cv2.imwrite(f"../debug_export/{index:05d}.png", frame_to_write)
+        cv2.imwrite(f"../debug_export/{frame.position:09d}.png", frame_to_write)
 
 
 def debug_build(edit_filename, source_filenames):
@@ -106,12 +109,6 @@ def debug_build(edit_filename, source_filenames):
     edit_clip = ClipReader(edit_filename)
     debug_export(edit_clip, source_clips, edit_frames)
     return edit_frames
-
-def frames_from_multiclip(frames, clips):
-    # Currently unused
-    frames = sorted(frames) #Sorting the frames in order helps with reducing seek errors.
-    for frame in frames:
-        yield clips[frame.filename][frame.position]
 
 def build(edit_filename, source_filenames):
     print("Phase 0: Hashing and Cropping")
@@ -147,8 +144,8 @@ def build(edit_filename, source_filenames):
 
 
 if __name__ == "__main__":
-    edit_filename = "../hawkling.mkv"
-    source_filenames = ["../ark.mkv"]
+    edit_filename = "../time.mkv"
+    source_filenames = ["../Halo3_4K.mp4"]
     #edit_filename = "../Forever.mkv"
     #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
     #                    "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
