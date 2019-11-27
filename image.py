@@ -8,10 +8,11 @@ from gmpy2 import mpz, hamdist, pack
 
 class HashedFrame:
     __slots__ = ["position", "filename", "hash",
-                 "nearest_neighbors", "best_neighbor"]
+                 "nearest_neighbors", "best_neighbor", "timestamp"]
 
     def __init__(self):
         self.position = None
+        self.timestamp = None
         self.filename = None
         self.hash = None
         self.nearest_neighbors = None

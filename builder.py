@@ -2,16 +2,18 @@ import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool
 
 import os
+import datetime # debug
 import shutil
 import cv2
 import pickle
 import numpy as np
 from tqdm import tqdm
+from gmpy2 import mpz, hamdist, pack
 
 from vptree import VPTree
 from clip import ClipReader
 from image import ImageTool, HashedFrame
-from gmpy2 import mpz, hamdist, pack
+from export import split_frames_on_index_or_filename
 
 mp_data = None
 
@@ -46,6 +48,9 @@ def apply_hash(iterator, hash_function, hash_args, hash_window_size, tolerance=4
 
     return frames
 
+def apply_timestamps(frames, clip):
+    for frame in frames:
+        frame.timestamp = float(frame.position) / clip.fps
 
 def find_nearest_matches_initalizer(frames, depth):
     global mp_data
@@ -123,13 +128,15 @@ def build(edit_filename, source_filenames):
     for filename in source_filenames:
         print("Processing", filename)
         source_clips[filename] = ClipReader(filename)
-        source_frames.extend(apply_hash(source_clips[filename], hash_function=hash_function,
-                                        hash_args=hash_args, hash_window_size=hash_window_size, iterator_length=len(source_clips[filename])))
+        frames = apply_hash(source_clips[filename], hash_function=hash_function, hash_args=hash_args, hash_window_size=hash_window_size, iterator_length=len(source_clips[filename]))
+        apply_timestamps(frames, source_clips[filename])
+        source_frames.extend(frames)
 
     print("Processing", edit_filename)
     edit_clip = ClipReader(edit_filename)
     edit_frames = apply_hash(edit_clip, hash_function=hash_function, hash_args=hash_args,
                              hash_window_size=hash_window_size, iterator_length=len(edit_clip))
+    apply_timestamps(edit_frames, edit_clip)
 
     print("Phase 1: Finding Nearest Matches")
     matched_edit_frames = find_nearest_matches(source_frames, edit_frames, depth=1)
@@ -139,13 +146,32 @@ def build(edit_filename, source_filenames):
         pickle.dump(matched_edit_frames, f)
 
     print("Phase 3: Export Frames")
-    debug_export(edit_clip, source_clips, matched_edit_frames)
+    # debug_export(edit_clip, source_clips, matched_edit_frames)
+
+    for entry in split_frames_on_index_or_filename(matched_edit_frames, 60):
+        if len(entry) < 30:
+            print("invalid entry")
+            continue
+
+        min_match = min(entry, key=lambda x: x.position)
+        max_match = max(entry, key=lambda x: x.position)
+
+        left = datetime.timedelta(seconds=min_match.timestamp)
+        right = datetime.timedelta(seconds=max_match.timestamp)
+
+        left_real = datetime.timedelta(seconds=min_match.best_neighbor.timestamp)
+        right_real = datetime.timedelta(seconds=max_match.best_neighbor.timestamp)
+
+        print(len(entry), (str(left), str(right)), (str(left_real), str(right_real)))
+
+    print()
+
     return matched_edit_frames
 
 
 if __name__ == "__main__":
-    edit_filename = "../time.mkv"
-    source_filenames = ["../Halo3_4K.mp4"]
+    edit_filename = "../hawkling.mkv"
+    source_filenames = ["../ark.mkv"]
     #edit_filename = "../Forever.mkv"
     #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
     #                    "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
