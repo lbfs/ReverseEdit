@@ -19,7 +19,6 @@ class ClipReader:
         self.pos = 0
         self.capture = cv2.VideoCapture(filename)
         self.fps = float(self.capture.get(cv2.CAP_PROP_FPS))
-        print(filename, self.fps)
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))

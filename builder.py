@@ -2,7 +2,6 @@ import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool
 
 import os
-import datetime # debug
 import shutil
 import cv2
 import pickle
@@ -13,7 +12,7 @@ from gmpy2 import mpz, hamdist, pack
 from vptree import VPTree
 from clip import ClipReader
 from image import ImageTool, HashedFrame
-from export import split_frames_on_index_or_filename
+from export import split_frames_on_index_or_filename, convert_splits_to_time_ranges
 
 mp_data = None
 
@@ -147,24 +146,11 @@ def build(edit_filename, source_filenames):
 
     print("Phase 3: Export Frames")
     # debug_export(edit_clip, source_clips, matched_edit_frames)
+    splits = split_frames_on_index_or_filename(matched_edit_frames, distance = 15)
+    ranges = convert_splits_to_time_ranges(splits, 30)
 
-    for entry in split_frames_on_index_or_filename(matched_edit_frames, 60):
-        if len(entry) < 30:
-            print("invalid entry")
-            continue
-
-        min_match = min(entry, key=lambda x: x.position)
-        max_match = max(entry, key=lambda x: x.position)
-
-        left = datetime.timedelta(seconds=min_match.timestamp)
-        right = datetime.timedelta(seconds=max_match.timestamp)
-
-        left_real = datetime.timedelta(seconds=min_match.best_neighbor.timestamp)
-        right_real = datetime.timedelta(seconds=max_match.best_neighbor.timestamp)
-
-        print(len(entry), (str(left), str(right)), (str(left_real), str(right_real)))
-
-    print()
+    for t_range in ranges:
+        print(str(t_range[0][0]), str(t_range[0][1]), str(t_range[1][0]), str(t_range[1][1]))
 
     return matched_edit_frames
 
@@ -174,7 +160,7 @@ if __name__ == "__main__":
     source_filenames = ["../ark.mkv"]
     #edit_filename = "../Forever.mkv"
     #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
-    #                    "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
+                        #"../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
 
     debug = False
     if debug:
