@@ -14,7 +14,7 @@ class Frame:
 class ClipReader:
     """ A class to interact with a video object with easy seek and iteration functionality. """
     __slots__ = ["filename", "pos", "capture",
-                 "fps", "height", "width", "count", "duration"]
+                 "fps", "height", "width", "count"]
 
     def __init__(self, filename):
         if not os.path.exists(filename):
@@ -27,7 +27,6 @@ class ClipReader:
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.duration = float(self.capture.get(cv2.CAP_PROP_POS_MSEC))
 
     def __iter__(self):
         """

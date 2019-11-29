@@ -34,12 +34,13 @@ def export_to_openshot(ranges):
     with open("clip.json", "rt") as cosf:
         clip = json.load(cosf)
 
-    for t_range in ranges:
+    for index, t_range in enumerate(ranges):
         start = t_range[1][0]
         end = t_range[1][1]
         position = t_range[0][0]
 
         segment = clip.copy()
+        segment["id"] = str(index).zfill(10)
         segment["start"] = start
         segment["position"] = position
         segment["end"] = end
