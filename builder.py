@@ -1,10 +1,10 @@
+import os
+import shutil
+import pickle
 import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool
 
-import os
-import shutil
 import cv2
-import pickle
 import numpy as np
 from tqdm import tqdm
 from gmpy2 import mpz, hamdist, pack
@@ -12,7 +12,7 @@ from gmpy2 import mpz, hamdist, pack
 from vptree import VPTree
 from clip import ClipReader
 from image import ImageTool, HashedFrame
-from export import split_frames_on_index_or_filename, convert_splits_to_time_ranges
+from export import split_frames_on_index_or_filename, convert_splits_to_time_ranges, export_to_openshot
 
 mp_data = None
 
@@ -148,6 +148,7 @@ def build(edit_filename, source_filenames):
     # debug_export(edit_clip, source_clips, matched_edit_frames)
     splits = split_frames_on_index_or_filename(matched_edit_frames, distance = 15)
     ranges = convert_splits_to_time_ranges(splits, 30)
+    result = export_to_openshot(ranges)
 
     for t_range in ranges:
         print(str(t_range[0][0]), str(t_range[0][1]), str(t_range[1][0]), str(t_range[1][1]))

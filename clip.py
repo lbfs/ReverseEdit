@@ -1,16 +1,21 @@
 import os
 import cv2
 
+
 class Frame:
     __slots__ = ["frame", "filename", "position"]
+
     def __init__(self, frame, filename, position):
         self.frame = frame
         self.filename = filename
         self.position = position
 
+
 class ClipReader:
     """ A class to interact with a video object with easy seek and iteration functionality. """
-    __slots__ = ["filename", "pos", "capture", "fps", "height", "width", "count"]
+    __slots__ = ["filename", "pos", "capture",
+                 "fps", "height", "width", "count", "duration"]
+
     def __init__(self, filename):
         if not os.path.exists(filename):
             raise FileNotFoundError(f"File {filename} does not exist.")
@@ -22,6 +27,7 @@ class ClipReader:
         self.height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
         self.width = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.count = int(self.capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.duration = float(self.capture.get(cv2.CAP_PROP_POS_MSEC))
 
     def __iter__(self):
         """
@@ -50,9 +56,10 @@ class ClipReader:
         Accessing sequential frames does not require additional seeks.
         """
         if not isinstance(key, int):
-            raise IndexError(f"ClipReader requires an integer index not {type(key)}")
+            raise IndexError(
+                f"ClipReader requires an integer index not {type(key)}")
 
-        #if key < 0 or key >= len(self):
+        # if key < 0 or key >= len(self):
         #    raise IndexError(f"ClipReader index is out of range.")
 
         if key == self.pos + 1:

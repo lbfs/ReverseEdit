@@ -1,4 +1,4 @@
-import datetime
+import json
 
 def split_frames_on_index_or_filename(matched_edit_frames, distance=5):
     indices = []
@@ -20,19 +20,34 @@ def convert_splits_to_time_ranges(splits, invalid_if_less=30):
         min_match = min(entry, key=lambda x: x.position)
         max_match = max(entry, key=lambda x: x.position)
 
-        left = datetime.timedelta(seconds=min_match.timestamp)
-        right = datetime.timedelta(seconds=max_match.timestamp)
-
-        left_real = datetime.timedelta(
-            seconds=min_match.best_neighbor.timestamp)
-        right_real = datetime.timedelta(
-            seconds=max_match.best_neighbor.timestamp)
-
-        result = ((left, right), (left_real, right_real))
+        result = ((min_match.timestamp, max_match.timestamp), (min_match.best_neighbor.timestamp, max_match.best_neighbor.timestamp))
 
         ranges.append(result)
 
     return ranges
 
-def export_to_kdenlive(splits):
-    pass
+
+def export_to_openshot(ranges):
+    with open("openshot.json", "rt") as osf:
+        openshot = json.load(osf)
+
+    with open("clip.json", "rt") as cosf:
+        clip = json.load(cosf)
+
+    for t_range in ranges:
+        start = t_range[1][0]
+        end = t_range[1][1]
+        position = t_range[0][0]
+
+        segment = clip.copy()
+        segment["start"] = start
+        segment["position"] = position
+        segment["end"] = end
+
+        openshot["clips"].append(segment)
+
+    with open('../../test2.osp', 'w') as json_file:
+        json.dump(openshot, json_file, indent=4, sort_keys=True)
+
+    return openshot
+
