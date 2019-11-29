@@ -148,10 +148,7 @@ def build(edit_filename, source_filenames):
     # debug_export(edit_clip, source_clips, matched_edit_frames)
     splits = split_frames_on_index_or_filename(matched_edit_frames, distance = 15)
     ranges = convert_splits_to_time_ranges(splits, 30)
-    result = export_to_openshot(ranges)
-
-    for t_range in ranges:
-        print(str(t_range[0][0]), str(t_range[0][1]), str(t_range[1][0]), str(t_range[1][1]))
+    result = export_to_openshot(ranges, source_filenames)
 
     return matched_edit_frames
 
