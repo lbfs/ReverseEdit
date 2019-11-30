@@ -111,14 +111,17 @@ def debug_build(edit_filename, source_filenames):
         source_clips[filename] = ClipReader(filename)
 
     edit_clip = ClipReader(edit_filename)
-    debug_export(edit_clip, source_clips, edit_frames)
+    splits = split_frames_on_index_or_filename(edit_frames, distance = 15)
+    ranges = convert_splits_to_time_ranges(splits, 30)
+    result = export_to_openshot(ranges, source_filenames)
+
     return edit_frames
 
 def build(edit_filename, source_filenames):
     print("Phase 0: Hashing and Cropping")
 
     hash_function = ImageTool.perceptual_hash
-    hash_size = 32
+    hash_size = 64
     hash_args = (hash_size, hash_size * 4)
     hash_window_size = hash_size * 4 * hash_size * 4
 
@@ -154,13 +157,12 @@ def build(edit_filename, source_filenames):
 
 
 if __name__ == "__main__":
-    edit_filename = "../hawkling.mkv"
-    source_filenames = ["../ark.mkv"]
-    #edit_filename = "../Forever.mkv"
-    #source_filenames = ["../Halo3.mkv", "../Halo2.mkv",
-                        #"../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
+    # edit_filename = "../hawkling.mkv"
+    # source_filenames = ["../ark.mkv"]
+    edit_filename = "../Forever.mkv"
+    source_filenames = ["../Halo3.mkv", "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
 
-    debug = False
+    debug = True
     if debug:
         matched_edit_frames = debug_build(edit_filename, source_filenames)
     else:

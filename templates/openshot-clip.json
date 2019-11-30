@@ -262,8 +262,6 @@
         "top_field_first": true,
         "type": "FFmpegReader",
         "vcodec": "h264",
-        "video_bit_rate": 162251,
-        "video_length": "10824",
         "video_stream_index": 0,
         "video_timebase": {
             "den": 1000,

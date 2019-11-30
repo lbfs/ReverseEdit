@@ -1,4 +1,5 @@
 import json
+import fractions
 import pprint
 import subprocess
 import os
@@ -30,35 +31,35 @@ def convert_splits_to_time_ranges(splits, invalid_if_less=30):
     return ranges
 
 def parse_ffprobe_to_openshot(filename):
-    command = f'ffprobe -v quiet -print_format json -show_streams {filename}'
+    command = f'ffprobe -v quiet -print_format json -show_format -show_streams {filename}'
     data = json.loads(subprocess.check_output(command).decode('UTF-8'))
 
     reader = {}
     reader['has_video'] = False
     reader['has_audio'] = False
 
-   # print(data)
+    pprint.pprint(dict(data))
+
+    reader['metadata'] = {}
+
+    reader['metadata']['COMPATIBLE_BRANDS'] = data['format']['tags']['COMPATIBLE_BRANDS']
+    reader['metadata']['MAJOR_BRAND'] = data['format']['tags']['MAJOR_BRAND']
+    reader['metadata']['MINOR_VERSION'] = data['format']['tags']['MINOR_VERSION']
+    reader['metadata']['ENCODER'] = data['format']['tags']['ENCODER']
 
     for stream in data['streams']:
-
         if stream['codec_type'] == 'video':
             reader['has_video'] = True
             reader['height'] = int(stream['height'])
             reader['width'] = int(stream['width'])
 
-            if 'metadata' not in reader:
-                reader['metadata'] = {}
+            aspect_ratio = fractions.Fraction(reader['width'], reader['height'])
 
-            # Figure out how to extract this better
-            reader['metadata']['COMPATIBLE_BRANDS'] = 'iso6avc1mp41'
-            reader['metadata']['MAJOR_BRAND'] = 'dash'
-            reader['metadata']['MINOR_VERSION'] = '0'
-            reader['metadata']['encoder'] = 'Lavf58.30.100'
-            reader['video_bit_rate'] = 162251
-            reader['video_length'] = "10824"
+            #reader['video_bit_rate'] = 162251
+            #reader['video_length'] = "10824"
             reader["display_ratio"] = {
-                    "den": 9,
-                    "num": 16
+                    "den": aspect_ratio.denominator,
+                    "num": aspect_ratio.numerator
             }
             reader["type"] = "FFmpegReader"
             reader["pixel_format"] = 0
@@ -70,9 +71,6 @@ def parse_ffprobe_to_openshot(filename):
             reader['metadata']['HANDLER_NAME'] = stream['tags']['HANDLER_NAME']
             reader['metadata']['DURATION'] = stream['tags']['DURATION']
             reader['vcodec'] = stream['codec_name']
-            # bit rate
-            # video length
-            # display ratio
             reader['video_stream_index'] = int(stream['index'])
             video_timebase_num, video_timebase_den = stream['time_base'].split('/')
 
@@ -107,9 +105,6 @@ def parse_ffprobe_to_openshot(filename):
             reader["audio_bit_rate"] = 0
             reader["channel_layout"] = 3
 
-            if 'metadata' not in reader:
-                reader['metadata'] = {}
-
             if reader['has_video']:
                 if stream['tags']['DURATION'] > reader['metadata']['DURATION']:
                     reader['metadata']['DURATION'] = stream['tags']['DURATION']
@@ -120,9 +115,9 @@ def parse_ffprobe_to_openshot(filename):
             if 'language' in stream['tags']:
                 reader['metadata']['language'] = stream['tags']['language']
 
+    #reader['format']['duration']
     reader['path'] = os.path.abspath(filename)
-    reader['file_size'] = str(os.stat(filename).st_size)
-    reader['title'] = os.path.basename(filename)
+    reader['file_size'] = data['format']['size']
     return reader
 
 def export_to_openshot(ranges, filenames):
@@ -140,6 +135,7 @@ def export_to_openshot(ranges, filenames):
         result_id = str(index).zfill(10)
         result['id'] = result_id
         result['image'] = f'thumbnail/{result_id}.png'
+
         openshot['files'].append(result)
         files_dict[filename] = result
         index += 1
@@ -159,6 +155,7 @@ def export_to_openshot(ranges, filenames):
         segment['start'] = start
         segment['position'] = position
         segment['end'] = end
+        segment['title'] = os.path.basename(segment['reader']['path'])
 
         openshot['clips'].append(segment)
         index += 1
