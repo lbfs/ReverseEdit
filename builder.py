@@ -78,45 +78,6 @@ def find_nearest_matches(source_frames, edit_frames, depth=1):
         frames = [frame for frame in iterator]
     return frames
 
-
-def debug_export(edit_clip, source_clips, edit_frames):
-    if os.path.exists("../debug_export"):
-        shutil.rmtree("../debug_export")
-
-    os.mkdir("../debug_export")
-
-    edit_frames = sorted(edit_frames, key=lambda frame: frame.best_neighbor.position)
-
-    for frame in tqdm(edit_frames):
-        neighbor = frame.best_neighbor
-        edit_frame = edit_clip[frame.position].frame
-        source_frame = source_clips[neighbor.filename][neighbor.position].frame
-        source_frame = cv2.resize(
-            source_frame, (edit_clip.width, edit_clip.height))
-
-        distance = HashedFrame.compute_distance(frame, neighbor)
-        frame_to_write = np.concatenate((edit_frame, source_frame), axis=1)
-
-        cv2.putText(frame_to_write, f"{distance:0.2f}", (
-            10, frame_to_write.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 1.0, (255, 255, 255))
-        cv2.imwrite(f"../debug_export/{frame.position:09d}.png", frame_to_write)
-
-
-def debug_build(edit_filename, source_filenames):
-    with open("export.pickle", "rb") as f:
-        edit_frames = pickle.load(f)
-
-    source_clips = {}
-    for filename in source_filenames:
-        source_clips[filename] = ClipReader(filename)
-
-    edit_clip = ClipReader(edit_filename)
-    splits = split_frames_on_index_or_filename(edit_frames, distance = 15)
-    ranges = convert_splits_to_time_ranges(splits, 30)
-    result = export_to_openshot(ranges, source_filenames)
-
-    return edit_frames
-
 def build(edit_filename, source_filenames):
     print("Phase 0: Hashing and Cropping")
 
@@ -148,24 +109,12 @@ def build(edit_filename, source_filenames):
         pickle.dump(matched_edit_frames, f)
 
     print("Phase 3: Export Frames")
-    # debug_export(edit_clip, source_clips, matched_edit_frames)
     splits = split_frames_on_index_or_filename(matched_edit_frames, distance = 15)
     ranges = convert_splits_to_time_ranges(splits, 30)
     result = export_to_openshot(ranges, source_filenames)
 
-    return matched_edit_frames
-
-
 if __name__ == "__main__":
-    # edit_filename = "../hawkling.mkv"
-    # source_filenames = ["../ark.mkv"]
-    edit_filename = "../Forever.mkv"
-    source_filenames = ["../Halo3.mkv", "../Wars.mkv", "../Starry.mkv", "../ODST.mkv", "../E3.mkv"]
+    edit_filename = "../time.mkv"
+    source_filenames = ["../Halo3.mkv"]
 
-    debug = True
-    if debug:
-        matched_edit_frames = debug_build(edit_filename, source_filenames)
-    else:
-        matched_edit_frames = build(edit_filename, source_filenames)
-
-    cv2.destroyAllWindows()
+    build(edit_filename, source_filenames)
