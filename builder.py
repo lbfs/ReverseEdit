@@ -100,10 +100,12 @@ def build(edit_filename, source_filenames, hash_size, split_distance, invalid_le
     print("Phase 1: Finding Nearest Matches")
     matched_edit_frames = find_nearest_matches(source_frames, edit_frames, depth=1)
 
-    print("Phase 2: Export Frames")
+    print("Phase 2: Exporting to File")
     splits = split_frames_on_index_or_filename(matched_edit_frames, distance = split_distance)
     ranges = convert_splits_to_time_ranges(splits, invalid_less)
     result = export_to_openshot(export_path, ranges, source_filenames)
+
+    print(f"Exported to {export_path}")
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Recreate a video project file from source footage and an already existing edited video.')
