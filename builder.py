@@ -1,11 +1,8 @@
 import os
-import shutil
-import pickle
+import argparse
 import multiprocessing
 from multiprocessing.dummy import Pool as ThreadPool
 
-import cv2
-import numpy as np
 from tqdm import tqdm
 from gmpy2 import mpz, hamdist, pack
 
@@ -78,11 +75,10 @@ def find_nearest_matches(source_frames, edit_frames, depth=1):
         frames = [frame for frame in iterator]
     return frames
 
-def build(edit_filename, source_filenames):
+def build(edit_filename, source_filenames, hash_size, split_distance, invalid_less, export_path):
     print("Phase 0: Hashing and Cropping")
 
     hash_function = ImageTool.perceptual_hash
-    hash_size = 64
     hash_args = (hash_size, hash_size * 4)
     hash_window_size = hash_size * 4 * hash_size * 4
 
@@ -104,17 +100,46 @@ def build(edit_filename, source_filenames):
     print("Phase 1: Finding Nearest Matches")
     matched_edit_frames = find_nearest_matches(source_frames, edit_frames, depth=1)
 
-    print("Phase 2: Export Debug Data")
-    with open("export.pickle", "wb") as f:
-        pickle.dump(matched_edit_frames, f)
-
-    print("Phase 3: Export Frames")
-    splits = split_frames_on_index_or_filename(matched_edit_frames, distance = 15)
-    ranges = convert_splits_to_time_ranges(splits, 30)
-    result = export_to_openshot(ranges, source_filenames)
+    print("Phase 2: Export Frames")
+    splits = split_frames_on_index_or_filename(matched_edit_frames, distance = split_distance)
+    ranges = convert_splits_to_time_ranges(splits, invalid_less)
+    result = export_to_openshot(export_path, ranges, source_filenames)
 
 if __name__ == "__main__":
-    edit_filename = "../time.mkv"
-    source_filenames = ["../Halo3.mkv"]
+    parser = argparse.ArgumentParser(description='Recreate a video project file from source footage and an already existing edited video.')
 
-    build(edit_filename, source_filenames)
+    parser.add_argument('--source_filename', action='append', dest="source_filenames")
+    parser.add_argument('--edit_filename', action='store', dest="edit_filename")
+    parser.add_argument('--hash_size', action='store', dest='hash_size', default=32)
+    parser.add_argument('--split_distance', action='store', dest='split_distance', default=15)
+    parser.add_argument('--invalid_less', action='store', dest='invalid_less', default=30)
+    parser.add_argument('--export_path', action='store', dest='export_path', default="export.osp")
+
+    args = parser.parse_args()
+
+    if args.source_filenames == None:
+        print("No source videos were provided. Please use --source_filename [path].")
+        exit(1)
+
+    if args.edit_filename == None:
+        print("No edit video was provided. Please provide with --edit_filename [path]")
+        exit(1)
+
+    for source_filename in args.source_filenames:
+        if not os.path.exists(source_filename):
+            print(f"Source filename: {source_filename} does not exist. Aborting.")
+            exit(1)
+
+    if not os.path.exists(args.edit_filename):
+        print(f"Edit filename: {args.edit_filename} does not exist. Aborting.")
+
+    print("---------------------------------------")
+    print("Source Filenames:", args.source_filenames)
+    print("Edit Filenames:", args.edit_filename)
+    print("Hash Size:", args.hash_size)
+    print("Split distance:", args.split_distance)
+    print("Invalidate Frame Distance:", args.invalid_less)
+    print("Export Filename:", args.export_path)
+    print("---------------------------------------")
+
+    build(args.edit_filename, args.source_filenames, args.hash_size, args.split_distance, args.invalid_less, args.export_path)

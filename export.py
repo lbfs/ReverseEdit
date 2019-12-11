@@ -1,6 +1,5 @@
 import json
 import fractions
-import pprint
 import subprocess
 import os
 
@@ -37,8 +36,6 @@ def parse_ffprobe_to_openshot(filename):
     reader = {}
     reader['has_video'] = False
     reader['has_audio'] = False
-
-    pprint.pprint(dict(data))
 
     reader['metadata'] = {}
 
@@ -120,7 +117,7 @@ def parse_ffprobe_to_openshot(filename):
     reader['file_size'] = data['format']['size']
     return reader
 
-def export_to_openshot(ranges, filenames):
+def export_to_openshot(export_path, ranges, filenames):
     with open('templates/openshot.json', 'rt') as f:
         openshot = json.load(f)
 
@@ -160,7 +157,10 @@ def export_to_openshot(ranges, filenames):
         openshot['clips'].append(segment)
         index += 1
 
-    with open('../../test2.osp', 'w') as json_file:
+    if not export_path.endswith(".osp"):
+        export_path = export_path + ".osp"
+
+    with open(export_path, 'w') as json_file:
         json.dump(openshot, json_file, indent=4, sort_keys=True)
 
     return openshot
