@@ -90,7 +90,7 @@ def find_nearest_matches(source_frames, edit_frames, depth=1):
         frames = [frame for frame in iterator]
     return frames
 
-def build(edit_filename, source_filenames, hash_size, split_distance, invalid_less, export_path):
+def build(edit_filename, source_filenames, hash_size, split_distance, invalid_less, export_path, edit_tolerance, source_tolerance):
     """ Build the Openshot Video Project File out of the provided settings. """
     print("Phase 0: Hashing and Cropping")
 
@@ -103,14 +103,14 @@ def build(edit_filename, source_filenames, hash_size, split_distance, invalid_le
     for filename in source_filenames:
         print("Processing", filename)
         source_clips[filename] = ClipReader(filename)
-        frames = apply_hash(source_clips[filename], hash_function=hash_function, hash_args=hash_args, hash_window_size=hash_window_size, iterator_length=len(source_clips[filename]))
+        frames = apply_hash(source_clips[filename], hash_function=hash_function, hash_args=hash_args, hash_window_size=hash_window_size, tolerance=source_tolerance, iterator_length=len(source_clips[filename]))
         apply_timestamps(frames, source_clips[filename])
         source_frames.extend(frames)
 
     print("Processing", edit_filename)
     edit_clip = ClipReader(edit_filename)
     edit_frames = apply_hash(edit_clip, hash_function=hash_function, hash_args=hash_args,
-                             hash_window_size=hash_window_size, iterator_length=len(edit_clip))
+                             hash_window_size=hash_window_size, iterator_length=len(edit_clip), tolerance=edit_tolerance)
     apply_timestamps(edit_frames, edit_clip)
 
     print("Phase 1: Finding Nearest Matches")
@@ -129,6 +129,8 @@ if __name__ == "__main__":
     parser.add_argument('--source_filename', action='append', dest="source_filenames")
     parser.add_argument('--edit_filename', action='store', dest="edit_filename")
     parser.add_argument('--hash_size', action='store', dest='hash_size', default=32, type=int)
+    parser.add_argument('--edit_tolerance', action='store', dest='edit_tolerance', default=40, type=int)
+    parser.add_argument('--source_tolerance', action='store', dest='source_tolerance', default=40, type=int)
     parser.add_argument('--split_distance', action='store', dest='split_distance', default=15, type=int)
     parser.add_argument('--invalid_less', action='store', dest='invalid_less', default=30, type=int)
     parser.add_argument('--export_path', action='store', dest='export_path', default="export.osp")
@@ -158,10 +160,12 @@ if __name__ == "__main__":
     print("---------------------------------------")
     print("Source Filenames:", args.source_filenames)
     print("Edit Filenames:", args.edit_filename)
+    print("Edit Tolerance:", args.edit_tolerance)
+    print("Source Tolerance:", args.source_tolerance)
     print("Hash Size:", args.hash_size)
     print("Split distance:", args.split_distance)
     print("Invalidate Frame Distance:", args.invalid_less)
     print("Export Filename:", args.export_path)
     print("---------------------------------------")
 
-    build(args.edit_filename, args.source_filenames, args.hash_size, args.split_distance, args.invalid_less, args.export_path)
+    build(args.edit_filename, args.source_filenames, args.hash_size, args.split_distance, args.invalid_less, args.export_path, args.edit_tolerance, args.source_tolerance)
