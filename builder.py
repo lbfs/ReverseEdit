@@ -15,12 +15,19 @@ mp_data = None
 
 
 def apply_hash_initalizer(hash_function, hash_args, hash_window_size, tolerance):
+    """
+    Sets up the hashing and cropping data inside the global mp_data variable.
+    """
     global mp_data
     mp_data = (hash_function, hash_args,
                hash_window_size, tolerance)
 
 
 def apply_hash_actor(frame):
+    """
+    Reads the data stored by apply_hash_initalizer and applies cropping and hashing to
+    each of the frames passed to this function. Returns a HashedFrame() with the results.
+    """
     global mp_data
     hash_function, hash_args, hash_window_size, tolerance = mp_data
 
@@ -35,6 +42,10 @@ def apply_hash_actor(frame):
     return hashed_frame
 
 def apply_hash(iterator, hash_function, hash_args, hash_window_size, tolerance=40, iterator_length=None):
+    """
+    Iterates through each frame in a supplied video and applies the apply_hash_actor in parallel.
+    Returns a set of HashedFrames() supplying video information.
+    """
     initargs = (hash_function, hash_args, hash_window_size, tolerance,)
     process_count = multiprocessing.cpu_count() - 1 or 1
     with ThreadPool(processes=process_count, initializer=apply_hash_initalizer, initargs=initargs) as pool:
@@ -45,10 +56,12 @@ def apply_hash(iterator, hash_function, hash_args, hash_window_size, tolerance=4
     return frames
 
 def apply_timestamps(frames, clip):
+    """ Convert each frame index into a frame timestamp in seconds """
     for frame in frames:
         frame.timestamp = float(frame.position) / clip.fps
 
 def find_nearest_matches_initalizer(frames, depth):
+    """ Build a VPTree of HashedFrames for parallel lookup of edit frames. """
     global mp_data
     # HACK: We should only need to construct the tree on the main process and then send it
     # However, some trees might be too large to recurse, which is a significant problem.
@@ -59,6 +72,7 @@ def find_nearest_matches_initalizer(frames, depth):
 
 
 def find_nearest_matches_actor(frame):
+    """ Scan the VPTree for the closest matching frame and store it in the HashedFrame. """
     tree, depth = mp_data
     nearest_neighbors = tree.get_n_nearest_neighbors(frame, depth)
     nearest_neighbors = [element[1] for element in nearest_neighbors]
@@ -68,6 +82,7 @@ def find_nearest_matches_actor(frame):
 
 
 def find_nearest_matches(source_frames, edit_frames, depth=1):
+    """ Find the nearest matches to each frame in the edit video. """
     process_count = multiprocessing.cpu_count() - 1 or 1
     with multiprocessing.Pool(processes=process_count, initializer=find_nearest_matches_initalizer, initargs=(source_frames, depth)) as pool:
         iterator = tqdm(pool.imap(find_nearest_matches_actor,
@@ -76,6 +91,7 @@ def find_nearest_matches(source_frames, edit_frames, depth=1):
     return frames
 
 def build(edit_filename, source_filenames, hash_size, split_distance, invalid_less, export_path):
+    """ Build the Openshot Video Project File out of the provided settings. """
     print("Phase 0: Hashing and Cropping")
 
     hash_function = ImageTool.perceptual_hash
@@ -112,9 +128,9 @@ if __name__ == "__main__":
 
     parser.add_argument('--source_filename', action='append', dest="source_filenames")
     parser.add_argument('--edit_filename', action='store', dest="edit_filename")
-    parser.add_argument('--hash_size', action='store', dest='hash_size', default=32)
-    parser.add_argument('--split_distance', action='store', dest='split_distance', default=15)
-    parser.add_argument('--invalid_less', action='store', dest='invalid_less', default=30)
+    parser.add_argument('--hash_size', action='store', dest='hash_size', default=32, type=int)
+    parser.add_argument('--split_distance', action='store', dest='split_distance', default=15, type=int)
+    parser.add_argument('--invalid_less', action='store', dest='invalid_less', default=30, type=int)
     parser.add_argument('--export_path', action='store', dest='export_path', default="export.osp")
 
     args = parser.parse_args()
@@ -134,6 +150,10 @@ if __name__ == "__main__":
 
     if not os.path.exists(args.edit_filename):
         print(f"Edit filename: {args.edit_filename} does not exist. Aborting.")
+
+    if args.hash_size % 2 != 0 or args.hash_size < 8:
+        print("Hash size is not a power of 2 or greater than 8. Aborting")
+        exit(1)
 
     print("---------------------------------------")
     print("Source Filenames:", args.source_filenames)

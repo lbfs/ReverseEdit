@@ -4,6 +4,7 @@ import subprocess
 import os
 
 def split_frames_on_index_or_filename(matched_edit_frames, distance=5):
+    """ Split the frames if the distance is above a matched threshold. """
     indices = []
 
     for (x, y, i) in zip(matched_edit_frames, matched_edit_frames[1:], range(len(matched_edit_frames))):
@@ -14,6 +15,8 @@ def split_frames_on_index_or_filename(matched_edit_frames, distance=5):
 
 
 def convert_splits_to_time_ranges(splits, invalid_if_less=30):
+    """ Convert a split into a range, drop if the range has less than n frames. """
+
     ranges = []
 
     for entry in splits:
@@ -30,6 +33,8 @@ def convert_splits_to_time_ranges(splits, invalid_if_less=30):
     return ranges
 
 def parse_ffprobe_to_openshot(filename):
+    """ Correctly fill out most of the OpenShot video data so we can correctly load new videos into the engine. """
+
     command = f'ffprobe -v quiet -print_format json -show_format -show_streams {filename}'
     data = json.loads(subprocess.check_output(command).decode('UTF-8'))
 
@@ -37,12 +42,7 @@ def parse_ffprobe_to_openshot(filename):
     reader['has_video'] = False
     reader['has_audio'] = False
 
-    reader['metadata'] = {}
-
-    reader['metadata']['COMPATIBLE_BRANDS'] = data['format']['tags']['COMPATIBLE_BRANDS']
-    reader['metadata']['MAJOR_BRAND'] = data['format']['tags']['MAJOR_BRAND']
-    reader['metadata']['MINOR_VERSION'] = data['format']['tags']['MINOR_VERSION']
-    reader['metadata']['ENCODER'] = data['format']['tags']['ENCODER']
+    reader['metadata'] = data['format']['tags']
 
     for stream in data['streams']:
         if stream['codec_type'] == 'video':
@@ -65,8 +65,6 @@ def parse_ffprobe_to_openshot(filename):
                     "num": 1
             }
 
-            reader['metadata']['HANDLER_NAME'] = stream['tags']['HANDLER_NAME']
-            reader['metadata']['DURATION'] = stream['tags']['DURATION']
             reader['vcodec'] = stream['codec_name']
             reader['video_stream_index'] = int(stream['index'])
             video_timebase_num, video_timebase_den = stream['time_base'].split('/')
@@ -102,15 +100,8 @@ def parse_ffprobe_to_openshot(filename):
             reader["audio_bit_rate"] = 0
             reader["channel_layout"] = 3
 
-            if reader['has_video']:
-                if stream['tags']['DURATION'] > reader['metadata']['DURATION']:
-                    reader['metadata']['DURATION'] = stream['tags']['DURATION']
-
             if not reader['has_video']:
                 reader['media_type'] = 'audio'
-
-            if 'language' in stream['tags']:
-                reader['metadata']['language'] = stream['tags']['language']
 
     #reader['format']['duration']
     reader['path'] = os.path.abspath(filename)
@@ -118,6 +109,8 @@ def parse_ffprobe_to_openshot(filename):
     return reader
 
 def export_to_openshot(export_path, ranges, filenames):
+    """ Customize the loaded template files with data calculated through the hashing process. """
+
     with open('templates/openshot.json', 'rt') as f:
         openshot = json.load(f)
 
